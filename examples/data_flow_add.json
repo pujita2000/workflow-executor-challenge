@@ -1,0 +1,36 @@
+{
+  "nodes": {
+    "start": {
+      "id": "start",
+      "node_type": {"type": "Start"},
+      "inputs": []
+    },
+    "value_a": {
+      "id": "value_a",
+      "node_type": {"type": "Echo", "message": "42"},
+      "inputs": []
+    },
+    "value_b": {
+      "id": "value_b",
+      "node_type": {"type": "Echo", "message": "58"},
+      "inputs": []
+    },
+    "sum": {
+      "id": "sum",
+      "node_type": {"type": "Add"},
+      "inputs": ["value_a.output", "value_b.output"]
+    },
+    "end": {
+      "id": "end",
+      "node_type": {"type": "End"},
+      "inputs": ["sum.output"]
+    }
+  },
+  "edges": [
+    {"from": "start", "to": "value_a", "condition": null},
+    {"from": "start", "to": "value_b", "condition": null},
+    {"from": "value_a", "to": "sum", "condition": null},
+    {"from": "value_b", "to": "sum", "condition": null},
+    {"from": "sum", "to": "end", "condition": null}
+  ]
+}

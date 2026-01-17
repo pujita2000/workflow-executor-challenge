@@ -1,0 +1,23 @@
+{
+  "nodes": {
+    "start": {
+      "id": "start",
+      "node_type": {"type": "Start"},
+      "inputs": []
+    },
+    "greet": {
+      "id": "greet",
+      "node_type": {"type": "Echo", "message": "Hello, World!"},
+      "inputs": []
+    },
+    "end": {
+      "id": "end",
+      "node_type": {"type": "End"},
+      "inputs": ["greet.output"]
+    }
+  },
+  "edges": [
+    {"from": "start", "to": "greet", "condition": null},
+    {"from": "greet", "to": "end", "condition": null}
+  ]
+}

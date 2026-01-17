@@ -1,0 +1,36 @@
+{
+  "nodes": {
+    "start": {
+      "id": "start",
+      "node_type": {"type": "Start"},
+      "inputs": []
+    },
+    "transform_a": {
+      "id": "transform_a",
+      "node_type": {"type": "Echo", "message": "Transformed by A"},
+      "inputs": []
+    },
+    "transform_b": {
+      "id": "transform_b",
+      "node_type": {"type": "Echo", "message": "Transformed by B"},
+      "inputs": []
+    },
+    "combine": {
+      "id": "combine",
+      "node_type": {"type": "Echo", "message": "Combined results"},
+      "inputs": []
+    },
+    "end": {
+      "id": "end",
+      "node_type": {"type": "End"},
+      "inputs": ["combine.output"]
+    }
+  },
+  "edges": [
+    {"from": "start", "to": "transform_a", "condition": null},
+    {"from": "start", "to": "transform_b", "condition": null},
+    {"from": "transform_a", "to": "combine", "condition": null},
+    {"from": "transform_b", "to": "combine", "condition": null},
+    {"from": "combine", "to": "end", "condition": null}
+  ]
+}

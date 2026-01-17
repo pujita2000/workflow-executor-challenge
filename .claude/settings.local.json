@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make help:*)",
+      "Bash(make build:*)",
+      "Bash(make check:*)",
+      "Bash(make test-basic:*)",
+      "Bash(make test:*)",
+      "Bash(make fmt:*)",
+      "Bash(make lint:*)",
+      "Bash(make package:*)",
+      "Bash(make info:*)",
+      "Bash(make clean:*)",
+      "Bash(make dev:*)",
+      "Bash(make ci:*)",
+      "Bash(make verify:*)",
+      "Bash(cat:*)",
+      "Bash(make build-release:*)",
+      "Bash(make fmt-check:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

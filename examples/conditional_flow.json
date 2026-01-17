@@ -1,0 +1,36 @@
+{
+  "nodes": {
+    "start": {
+      "id": "start",
+      "node_type": {"type": "Start"},
+      "inputs": []
+    },
+    "check_condition": {
+      "id": "check_condition",
+      "node_type": {"type": "IfElse", "condition": "true"},
+      "inputs": []
+    },
+    "success_path": {
+      "id": "success_path",
+      "node_type": {"type": "Echo", "message": "Condition was true - taking success path"},
+      "inputs": []
+    },
+    "failure_path": {
+      "id": "failure_path",
+      "node_type": {"type": "Echo", "message": "Condition was false - taking failure path"},
+      "inputs": []
+    },
+    "end": {
+      "id": "end",
+      "node_type": {"type": "End"},
+      "inputs": []
+    }
+  },
+  "edges": [
+    {"from": "start", "to": "check_condition", "condition": null},
+    {"from": "check_condition", "to": "success_path", "condition": "true"},
+    {"from": "check_condition", "to": "failure_path", "condition": "false"},
+    {"from": "success_path", "to": "end", "condition": null},
+    {"from": "failure_path", "to": "end", "condition": null}
+  ]
+}

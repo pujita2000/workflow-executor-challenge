@@ -1,0 +1,37 @@
+{
+  "nodes": {
+    "start": {
+      "id": "start",
+      "node_type": {"type": "Start"},
+      "inputs": []
+    },
+    "task_a": {
+      "id": "task_a",
+      "node_type": {"type": "Echo", "message": "Processing Task A"},
+      "inputs": []
+    },
+    "task_b": {
+      "id": "task_b",
+      "node_type": {"type": "Echo", "message": "Processing Task B"},
+      "inputs": []
+    },
+    "task_c": {
+      "id": "task_c",
+      "node_type": {"type": "Echo", "message": "Processing Task C"},
+      "inputs": []
+    },
+    "end": {
+      "id": "end",
+      "node_type": {"type": "End"},
+      "inputs": ["task_a.output", "task_b.output", "task_c.output"]
+    }
+  },
+  "edges": [
+    {"from": "start", "to": "task_a", "condition": null},
+    {"from": "start", "to": "task_b", "condition": null},
+    {"from": "start", "to": "task_c", "condition": null},
+    {"from": "task_a", "to": "end", "condition": null},
+    {"from": "task_b", "to": "end", "condition": null},
+    {"from": "task_c", "to": "end", "condition": null}
+  ]
+}
