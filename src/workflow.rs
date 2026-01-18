@@ -1,17 +1,12 @@
-use crate::graph::{Edge, Node, NodeId};
+use crate::{
+    graph::{Edge, Node, NodeId},
+    AdjList, GraphState,
+};
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
-
-/// Represents a complete workflow with nodes and edges
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Workflow {
-    /// Map of node IDs to node definitions
-    pub nodes: HashMap<NodeId, Node>,
-    /// Edges connecting nodes (defines execution order)
-    pub edges: Vec<Edge>,
-}
+use tokio::task::JoinHandle;
 
 /// Result of executing a workflow
 #[derive(Debug)]
@@ -20,6 +15,14 @@ pub struct ExecutionResult {
     pub node_outputs: HashMap<String, serde_json::Value>,
     /// Order in which nodes were executed (useful for debugging)
     pub execution_order: Vec<String>,
+}
+/// Represents a complete workflow with nodes and edges
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Workflow {
+    /// Map of node IDs to node definitions
+    pub nodes: HashMap<NodeId, Node>,
+    /// Edges connecting nodes (defines execution order)
+    pub edges: Vec<Edge>,
 }
 
 impl Workflow {
@@ -30,8 +33,8 @@ impl Workflow {
     /// - Invalid input references
     // TODO (PS): check for disconnected components
     // DOCS: used adjacency list because we'd only have to go through edges once + will need to use it later (I think)
-    pub fn validate(&self) -> Result<()> {
-        let mut adj_list: HashMap<NodeId, Vec<NodeId>> = HashMap::new();
+    pub fn validate(&self) -> Result<GraphState> {
+        let mut adj_list: AdjList = HashMap::new();
         for e in &self.edges {
             // Check for invalid nodes
             if !self.nodes.contains_key(&e.from) || !self.nodes.contains_key(&e.to) {
@@ -55,7 +58,7 @@ impl Workflow {
                 Self::check_cycle(&mut safe, &mut hot, &adj_list, &n.id)?
             }
         }
-        Ok(())
+        Ok(GraphState::new(self, adj_list))
     }
 
     /// Check cycles from the given node
@@ -102,10 +105,10 @@ impl Workflow {
     }
 
     /// Get all nodes that depend on the given node (outgoing edges)
-    pub fn get_dependents(&self, node_id: &str) -> Vec<String> {
+    pub fn get_dependents(&self, node_id: &str, output: &Value) -> Vec<String> {
         self.edges
             .iter()
-            .filter(|e| e.from == node_id)
+            .filter(|e| e.from == node_id && should_take_edge(output, &e.condition))
             .map(|e| e.to.clone())
             .collect()
     }
@@ -128,9 +131,14 @@ fn should_take_edge(node_output: &Value, edge_condition: &Option<String>) -> boo
     match edge_condition {
         None => true, // Unconditional edge
         Some(expected) => {
-            // TODO: Compare node output with expected condition
-            // Hint: Handle true/false boolean values
-            false
+            // Expected is a bool cast as a string
+            // TODO (PS) check validity of this operation, is it necessary to cast back to bool?
+            let json = json!(expected);
+            if *node_output == json {
+                true
+            } else {
+                false
+            }
         }
     }
 }
@@ -222,9 +230,9 @@ mod test {
             edges,
         };
 
-        let result = workflow.validate();
+        let res = workflow.validate();
         assert_eq!(
-            result.unwrap_err().to_string(),
+            res.unwrap_err().to_string(),
             "Node in edge does not exist".to_string()
         );
 
@@ -243,9 +251,9 @@ mod test {
             nodes: nodes_with_inputs,
             edges: vec![],
         };
-        let result = workflow_inputs.validate();
+        let res = workflow_inputs.validate();
         assert_eq!(
-            result.unwrap_err().to_string(),
+            res.unwrap_err().to_string(),
             "Invalid node id in input".to_string()
         );
 
@@ -264,9 +272,9 @@ mod test {
             nodes: nodes_with_inputs,
             edges: vec![],
         };
-        let result = workflow_inputs.validate();
+        let res = workflow_inputs.validate();
         assert_eq!(
-            result.unwrap_err().to_string(),
+            res.unwrap_err().to_string(),
             "Invalid input reference: bad".to_string()
         );
 

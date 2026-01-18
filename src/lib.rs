@@ -14,7 +14,7 @@ mod workflow;
 pub use graph::*;
 pub use workflow::*;
 
-use anyhow::Result;
+use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
 
@@ -75,8 +75,41 @@ impl WorkflowExecutor for SimpleExecutor {
             });
         }
 
-        // Your implementation here...
+        let mut state = workflow.validate()?;
 
-        todo!("Implement workflow execution")
+        loop {
+            let ready = state.get_ready_nodes();
+
+            // No nodes left to execute
+            if ready.is_empty() {
+                break;
+            }
+
+            let mut handles = Vec::new();
+            for node_id in ready.iter() {
+                let node = workflow
+                    .nodes
+                    .get(node_id)
+                    .ok_or_else(|| anyhow!("Trying to execute a node that does not exist"))?
+                    .clone();
+
+                // Get context from state (stores execution progress)
+                let context = state.outputs.clone();
+
+                let handle = tokio::spawn(async move { node.execute_with_context(&context).await });
+                handles.push((node_id, handle));
+            }
+
+            for (node_id, handle) in handles {
+                let output = handle.await??;
+                // Adjust dependencies so that nodes can enter the ready queue
+                let deps = workflow.get_dependents(node_id, &output);
+                state.update(node_id.clone(), output, &deps)?;
+            }
+        }
+        Ok(ExecutionResult {
+            node_outputs: state.outputs.to_owned(),
+            execution_order: state.execution_order.to_owned(),
+        })
     }
 }
