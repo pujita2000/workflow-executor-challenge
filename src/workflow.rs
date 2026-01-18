@@ -4,9 +4,8 @@ use crate::{
 };
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-use tokio::task::JoinHandle;
 
 /// Result of executing a workflow
 #[derive(Debug)]
@@ -31,9 +30,10 @@ impl Workflow {
     /// - Cycles in the graph
     /// - Missing node references in edges
     /// - Invalid input references
-    // TODO (PS): check for disconnected components
     // DOCS: used adjacency list because we'd only have to go through edges once + will need to use it later (I think)
     pub fn validate(&self) -> Result<GraphState> {
+        // TODO: We should also check for disconnected graphs
+
         let mut adj_list: AdjList = HashMap::new();
         for e in &self.edges {
             // Check for invalid nodes
@@ -58,10 +58,10 @@ impl Workflow {
                 Self::check_cycle(&mut safe, &mut hot, &adj_list, &n.id)?
             }
         }
-        Ok(GraphState::new(self, adj_list))
+        Ok(GraphState::new(self))
     }
 
-    /// Check cycles from the given node
+    /// Check for cycles from the given node
     fn check_cycle(
         safe: &mut HashSet<NodeId>,
         hot: &mut HashSet<NodeId>,
@@ -85,6 +85,8 @@ impl Workflow {
     }
 
     /// Check if a node has valid inputs
+    /// This means the input is dot separated string with two parts: (id, field)
+    /// The id must be a valid node_id
     fn check_inputs(inputs: &[String], nodes: &HashMap<NodeId, Node>) -> Result<()> {
         for i in inputs.iter() {
             let (id, _) = parse_input_reference(i)?;
@@ -96,6 +98,7 @@ impl Workflow {
     }
 
     /// Get all nodes that this node depends on (incoming edges)
+    /// Assumes the graph is valid
     pub fn get_dependencies(&self, node_id: &str) -> Vec<String> {
         self.edges
             .iter()
@@ -104,7 +107,8 @@ impl Workflow {
             .collect()
     }
 
-    /// Get all nodes that depend on the given node (outgoing edges)
+    /// Get all nodes that depend on the given node (outgoing edges), filtered by edge conditions
+    /// Assumes the graph is valid
     pub fn get_dependents(&self, node_id: &str, output: &Value) -> Vec<String> {
         self.edges
             .iter()
@@ -115,8 +119,7 @@ impl Workflow {
 }
 
 /// Parse an input reference like "node1.output" into (node_id, field)
-#[allow(dead_code)]
-fn parse_input_reference(reference: &str) -> Result<(String, String)> {
+pub fn parse_input_reference(reference: &str) -> Result<(String, String)> {
     let parts: Vec<&str> = reference.split('.').collect();
     if parts.len() != 2 {
         bail!("Invalid input reference: {}", reference);
@@ -125,7 +128,6 @@ fn parse_input_reference(reference: &str) -> Result<(String, String)> {
 }
 
 /// Check if an edge should be taken based on node output and edge condition
-#[allow(dead_code)]
 fn should_take_edge(node_output: &Value, edge_condition: &Option<String>) -> bool {
     match edge_condition {
         None => true, // Unconditional edge
@@ -144,6 +146,7 @@ fn should_take_edge(node_output: &Value, edge_condition: &Option<String>) -> boo
 mod test {
     use super::*;
     use crate::graph::NodeType;
+    use serde_json::json;
 
     fn node(id: &str) -> Node {
         Node {
@@ -159,6 +162,27 @@ mod test {
             to: to.to_string(),
             condition: None,
         }
+    }
+
+    #[test]
+    fn test_should_take_edge() {
+        // Unconditional edge - always taken
+        assert!(should_take_edge(&json!(true), &None));
+        assert!(should_take_edge(&json!(false), &None));
+        assert!(should_take_edge(&json!("anything"), &None));
+
+        // Matching conditions
+        assert!(should_take_edge(&json!(true), &Some("true".to_string())));
+        assert!(should_take_edge(&json!(false), &Some("false".to_string())));
+
+        // Non-matching conditions
+        assert!(!should_take_edge(&json!(true), &Some("false".to_string())));
+        assert!(!should_take_edge(&json!(false), &Some("true".to_string())));
+
+        // Non-bool node_output - should not take edge
+        assert!(!should_take_edge(&json!("true"), &Some("true".to_string())));
+        assert!(!should_take_edge(&json!(123), &Some("true".to_string())));
+        assert!(!should_take_edge(&json!(null), &Some("false".to_string())));
     }
 
     #[test]
@@ -254,7 +278,7 @@ mod test {
             "Invalid node id in input".to_string()
         );
 
-        // Invalid input reference 2
+        // Invalid input reference again
         let mut nodes_with_inputs = HashMap::new();
         nodes_with_inputs.insert(
             "a".to_string(),
