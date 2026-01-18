@@ -115,7 +115,6 @@ impl Workflow {
 }
 
 /// Parse an input reference like "node1.output" into (node_id, field)
-/// BONUS: Only needed if implementing Add node
 #[allow(dead_code)]
 fn parse_input_reference(reference: &str) -> Result<(String, String)> {
     let parts: Vec<&str> = reference.split('.').collect();
@@ -130,16 +129,14 @@ fn parse_input_reference(reference: &str) -> Result<(String, String)> {
 fn should_take_edge(node_output: &Value, edge_condition: &Option<String>) -> bool {
     match edge_condition {
         None => true, // Unconditional edge
-        Some(expected) => {
-            // Expected is a bool cast as a string
-            // TODO (PS) check validity of this operation, is it necessary to cast back to bool?
-            let json = json!(expected);
-            if *node_output == json {
-                true
-            } else {
-                false
+        Some(expected) => match node_output {
+            Value::Bool(b) => {
+                let expected_bool = expected == "true";
+                *b == expected_bool
             }
-        }
+            // node_output is restricted to a bool in graph::execute_with_context
+            _ => false,
+        },
     }
 }
 
