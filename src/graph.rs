@@ -1,13 +1,9 @@
 use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, map::Values, Value};
-use std::{
-    any,
-    collections::{HashMap, HashSet},
-    hash::Hash,
-};
+use serde_json::{json, Value};
+use std::collections::{HashMap, HashSet};
 
-use crate::workflow::Workflow;
+use crate::{parse_input_reference, workflow::Workflow};
 
 pub type NodeId = String;
 pub type AdjList = HashMap<NodeId, Vec<NodeId>>;
@@ -17,17 +13,15 @@ pub type AdjList = HashMap<NodeId, Vec<NodeId>>;
 #[derive(Debug)]
 pub struct GraphState {
     pub completed: HashSet<NodeId>,
-    // Context for each node after executing
+    /// Context for each node after job complete
     pub outputs: HashMap<NodeId, Value>,
     pub execution_order: Vec<NodeId>,
-    // Dependency count of node
+    /// Number of dependencies a node has
     pub in_degree: HashMap<NodeId, usize>,
-    // Map of nodes pointing to their dependents
-    pub adj_list: AdjList,
 }
 
 impl GraphState {
-    pub fn new(workflow: &Workflow, adj_list: AdjList) -> Self {
+    pub fn new(workflow: &Workflow) -> Self {
         let in_degree: HashMap<NodeId, usize> = workflow
             .nodes
             .keys()
@@ -38,7 +32,6 @@ impl GraphState {
             outputs: HashMap::new(),
             execution_order: Vec::new(),
             in_degree,
-            adj_list,
         }
     }
 
@@ -67,6 +60,7 @@ impl GraphState {
         Ok(())
     }
 }
+
 /// A single node in the workflow
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Node {
@@ -99,29 +93,56 @@ impl Node {
     /// Execute this node and return its output value
     ///
     /// Context contains resolved input values from previous nodes
-    /// (only needed for bonus Add node implementation)
-    pub async fn execute_with_context(&self, context: &HashMap<String, Value>) -> Result<Value> {
+    pub async fn execute_with_context(&self, context: &HashMap<NodeId, Value>) -> Result<Value> {
         match &self.node_type {
             NodeType::Start => Ok(json!(null)),
+            NodeType::End => {
+                if self.inputs.is_empty() {
+                    return Ok(json!(null));
+                }
 
-            NodeType::End => Ok(json!(null)), // TODO (PS) collect inputs later
-
+                let mut coll = Vec::new();
+                for i in self.inputs.iter() {
+                    let (id, _) = parse_input_reference(i)?;
+                    let v = context
+                        .get(&id)
+                        .ok_or_else(|| anyhow!("Input not in context map"))?;
+                    coll.push(v);
+                }
+                Ok(json!(coll))
+            }
             NodeType::Echo { message } => Ok(json!(message)),
-
             NodeType::IfElse { condition } => match condition.as_str() {
                 "true" => Ok(json!(true)),
                 "false" => Ok(json!(false)),
                 _ => Ok(json!(false)),
             },
             NodeType::Add => {
-                // Hint:
-                // 1. Get input values from context
-                // 2. Convert each to a number
-                // 3. Sum them up
-                // 4. Return as JSON number
-                todo!("BONUS: Implement Add node execution") // TODO (PS) will tackle this towards the end
+                let mut sum = 0.0;
+
+                for i in self.inputs.iter() {
+                    let (id, _) = parse_input_reference(i)?;
+                    let v = context
+                        .get(&id)
+                        .ok_or_else(|| anyhow!("Input not in context map"))?;
+                    let num = value_to_f64(v)?;
+                    sum += num;
+                }
+
+                Ok(json!(sum))
             }
         }
+    }
+}
+
+/// Convert a json Number or String to f64
+fn value_to_f64(v: &Value) -> Result<f64> {
+    match v {
+        Value::Number(n) => n.as_f64().ok_or_else(|| anyhow!("Invalid number: {}", n)),
+        Value::String(s) => s
+            .parse::<f64>()
+            .map_err(|_| anyhow!("Invalid number: {}", s)),
+        _ => bail!("Expected number or numeric string"),
     }
 }
 
@@ -134,4 +155,39 @@ pub struct Edge {
     pub to: NodeId,
     /// Optional condition for conditional edges (e.g., "true" or "false" for IfElse nodes)
     pub condition: Option<String>,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_value_to_f64() {
+        // Perhaps this is overkill, but let's just be safe
+
+        // Valid integer
+        assert_eq!(value_to_f64(&json!(10)).unwrap(), 10.0);
+        assert_eq!(value_to_f64(&json!(-5)).unwrap(), -5.0);
+        assert_eq!(value_to_f64(&json!(0)).unwrap(), 0.0);
+
+        // Valid float
+        assert_eq!(value_to_f64(&json!(10.5)).unwrap(), 10.5);
+        assert_eq!(value_to_f64(&json!(-3.1)).unwrap(), -3.1); // clippy stops us from using approximate values of pi
+
+        // Valid numeric string
+        assert_eq!(value_to_f64(&json!("10")).unwrap(), 10.0);
+        assert_eq!(value_to_f64(&json!("10.5")).unwrap(), 10.5);
+        assert_eq!(value_to_f64(&json!("-3.1")).unwrap(), -3.1);
+
+        // Invalid string (not a number)
+        assert!(value_to_f64(&json!("hello")).is_err());
+        assert!(value_to_f64(&json!("")).is_err());
+
+        // Other types should fail
+        assert!(value_to_f64(&json!(null)).is_err());
+        assert!(value_to_f64(&json!(true)).is_err());
+        assert!(value_to_f64(&json!(false)).is_err());
+        assert!(value_to_f64(&json!([])).is_err());
+        assert!(value_to_f64(&json!({})).is_err());
+    }
 }
