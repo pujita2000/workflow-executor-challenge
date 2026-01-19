@@ -61,6 +61,17 @@ impl GraphState {
     }
 }
 
+/// An edge connecting two nodes
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Edge {
+    /// Source node ID
+    pub from: NodeId,
+    /// Destination node ID
+    pub to: NodeId,
+    /// Optional condition for conditional edges (e.g., "true" or "false" for IfElse nodes)
+    pub condition: Option<String>,
+}
+
 /// A single node in the workflow
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Node {
@@ -145,18 +156,6 @@ fn value_to_f64(v: &Value) -> Result<f64> {
         _ => bail!("Expected number or numeric string"),
     }
 }
-
-/// An edge connecting two nodes
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Edge {
-    /// Source node ID
-    pub from: NodeId,
-    /// Destination node ID
-    pub to: NodeId,
-    /// Optional condition for conditional edges (e.g., "true" or "false" for IfElse nodes)
-    pub condition: Option<String>,
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
