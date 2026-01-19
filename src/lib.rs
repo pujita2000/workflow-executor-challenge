@@ -1,10 +1,6 @@
 //! Workflow Executor Library
 //!
-//! This library provides the core types and traits for executing workflows
-//! represented as directed acyclic graphs (DAGs) of nodes.
-//!
-//! Your task is to implement the `SimpleExecutor` struct to execute workflows
-//! correctly, handling parallel execution, branching, and data flow between nodes.
+//! This library provides the core trait for executing workflows
 
 mod graph;
 mod workflow;

@@ -260,18 +260,18 @@ async fn test_concurrent_execution_timing() {
             },
             "slow1": {
                 "id": "slow1",
-                "node_type": {"type": "Echo", "message": "Slow 1"},
+                "node_type": {"type": "Sleep", "time": "100"},
                 "inputs": []
             },
             "slow2": {
                 "id": "slow2",
-                "node_type": {"type": "Echo", "message": "Slow 2"},
+                "node_type": {"type": "Sleep", "time": "100"},
                 "inputs": []
             },
             "end": {
                 "id": "end",
                 "node_type": {"type": "End"},
-                "inputs": ["slow1.output", "slow2.output"]
+                "inputs": []
             }
         },
         "edges": [
