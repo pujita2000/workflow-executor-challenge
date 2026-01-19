@@ -8,13 +8,14 @@ use crate::{parse_input_reference, workflow::Workflow};
 pub type NodeId = String;
 
 // TODO (PS): add a phantom marker to tie lifetime to workflow?
-/// Key components of Workflow DAG, tracks state changes and job ouputs
+/// Key state changes of Workflow DAG, tracks state changes and job ouputs
 #[derive(Debug)]
 pub struct GraphState {
-    /// Nodes that have been spawned but not yet completed
+    /// Nodes that have been scheduled for execution
     pub spawned: HashSet<NodeId>,
     /// Context for each node after job complete
     pub outputs: HashMap<NodeId, Value>,
+    /// Order in which jobs were completed
     pub execution_order: Vec<NodeId>,
     /// Number of dependencies a node has
     pub in_degree: HashMap<NodeId, usize>,
