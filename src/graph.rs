@@ -6,7 +6,6 @@ use std::collections::{HashMap, HashSet};
 use crate::{parse_input_reference, workflow::Workflow};
 
 pub type NodeId = String;
-pub type AdjList = HashMap<NodeId, Vec<NodeId>>;
 
 // TODO (PS): add a phantom marker to tie lifetime to workflow?
 /// Key components of Workflow DAG, tracks state changes and job ouputs
