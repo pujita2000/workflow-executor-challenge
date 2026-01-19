@@ -6,16 +6,17 @@
 //! Your task is to implement the `SimpleExecutor` struct to execute workflows
 //! correctly, handling parallel execution, branching, and data flow between nodes.
 
-// TODO (PS) right now everything happens in tests, lets make a cli command to execute this work
 mod graph;
 mod workflow;
 
 pub use graph::*;
 pub use workflow::*;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use async_trait::async_trait;
+use serde_json::Value;
 use std::collections::HashMap;
+use tokio::task::JoinSet;
 
 /// Trait for executing workflows
 #[async_trait]
@@ -50,37 +51,34 @@ impl WorkflowExecutor for SimpleExecutor {
         }
 
         let mut state = workflow.validate()?;
+        let mut jobs: JoinSet<Result<(NodeId, Value)>> = JoinSet::new();
 
-        loop {
-            let ready = state.get_ready_nodes();
+        // Add initially ready nodes to JoinSet
+        for node_id in state.get_ready_nodes() {
+            let node = workflow.get_node(node_id)?;
+            let context = state.outputs.clone();
+            jobs.spawn(async move {
+                let output = node.execute_with_context(&context).await?;
+                Ok((node.id, output))
+            });
+        }
 
-            // No nodes left to execute
-            if ready.is_empty() {
-                break;
-            }
+        // Process completed jobs as they happen, spawn newly-ready nodes immediately
+        while let Some(result) = jobs.join_next().await {
+            let (node_id, output) = result??;
+            let deps = workflow.get_dependents(&node_id, &output);
+            state.update(node_id, output, &deps)?;
 
-            let mut handles = Vec::new();
-            for node_id in ready.iter() {
-                let node = workflow
-                    .nodes
-                    .get(node_id)
-                    .ok_or_else(|| anyhow!("Trying to execute a node that does not exist"))?
-                    .clone();
-
-                // Get context from state (stores execution progress)
+            for node_id in state.get_ready_nodes() {
+                let node = workflow.get_node(node_id)?;
                 let context = state.outputs.clone();
-
-                let handle = tokio::spawn(async move { node.execute_with_context(&context).await });
-                handles.push((node_id, handle));
-            }
-
-            for (node_id, handle) in handles {
-                let output = handle.await??;
-                // Adjust dependencies so that nodes can enter the ready queue
-                let deps = workflow.get_dependents(node_id, &output);
-                state.update(node_id.clone(), output, &deps)?;
+                jobs.spawn(async move {
+                    let output = node.execute_with_context(&context).await?;
+                    Ok((node.id, output))
+                });
             }
         }
+
         Ok(ExecutionResult {
             node_outputs: state.outputs.to_owned(),
             execution_order: state.execution_order.to_owned(),

@@ -2,7 +2,7 @@ use crate::{
     graph::{Edge, Node, NodeId},
     AdjList, GraphState,
 };
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -15,6 +15,7 @@ pub struct ExecutionResult {
     /// Order in which nodes were executed (useful for debugging)
     pub execution_order: Vec<String>,
 }
+
 /// Represents a complete workflow with nodes and edges
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Workflow {
@@ -30,7 +31,6 @@ impl Workflow {
     /// - Cycles in the graph
     /// - Missing node references in edges
     /// - Invalid input references
-    // DOCS: used adjacency list because we'd only have to go through edges once + will need to use it later (I think)
     pub fn validate(&self) -> Result<GraphState> {
         // TODO: We should also check for disconnected graphs
 
@@ -115,6 +115,15 @@ impl Workflow {
             .filter(|e| e.from == node_id && should_take_edge(output, &e.condition))
             .map(|e| e.to.clone())
             .collect()
+    }
+
+    /// Get Node given its id
+    pub fn get_node(&self, node_id: &NodeId) -> Result<Node> {
+        Ok(self
+            .nodes
+            .get(node_id)
+            .ok_or_else(|| anyhow!("Trying to execute a node that does not exist"))?
+            .clone())
     }
 }
 

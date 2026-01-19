@@ -36,11 +36,11 @@ impl GraphState {
     }
 
     /// Get all nodes that have no dependencies so that they can be executed
-    pub fn get_ready_nodes(&self) -> Vec<NodeId> {
+    pub fn get_ready_nodes(&self) -> Vec<&NodeId> {
         self.in_degree
             .iter()
             .filter(|(n, &u)| u == 0 && !self.completed.contains(*n))
-            .map(|(n, _)| n.clone())
+            .map(|(n, _)| n)
             .collect()
     }
 
