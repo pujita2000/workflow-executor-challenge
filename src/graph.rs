@@ -8,7 +8,7 @@ use crate::{parse_input_reference, workflow::Workflow};
 pub type NodeId = String;
 
 // TODO (PS): add a phantom marker to tie lifetime to workflow?
-/// Key state changes of Workflow DAG, tracks state changes and job ouputs
+/// Key state changes of Workflow DAG, tracks state changes and job outputs
 #[derive(Debug)]
 pub struct GraphState {
     /// Nodes that have been scheduled for execution
