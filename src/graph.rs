@@ -98,6 +98,8 @@ pub enum NodeType {
     /// Conditional branching based on a condition
     /// The condition is a simple string that can be "true" or "false"
     IfElse { condition: String },
+    /// Delays execution by given amount in milliseconds
+    Sleep { time: String },
 }
 
 impl Node {
@@ -141,6 +143,13 @@ impl Node {
                 }
 
                 Ok(json!(sum))
+            }
+            NodeType::Sleep { time } => {
+                let ms: u64 = time
+                    .parse()
+                    .map_err(|_| anyhow!("Invalid sleep time: {}", time))?;
+                tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+                Ok(json!(null))
             }
         }
     }
