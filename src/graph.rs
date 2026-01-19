@@ -8,12 +8,14 @@ use crate::{parse_input_reference, workflow::Workflow};
 pub type NodeId = String;
 
 // TODO (PS): add a phantom marker to tie lifetime to workflow?
-/// Key components of Workflow DAG, tracks state changes and job ouputs
+/// Key state changes of Workflow DAG, tracks state changes and job ouputs
 #[derive(Debug)]
 pub struct GraphState {
-    pub completed: HashSet<NodeId>,
+    /// Nodes that have been scheduled for execution
+    pub spawned: HashSet<NodeId>,
     /// Context for each node after job complete
     pub outputs: HashMap<NodeId, Value>,
+    /// Order in which jobs were completed
     pub execution_order: Vec<NodeId>,
     /// Number of dependencies a node has
     pub in_degree: HashMap<NodeId, usize>,
@@ -27,26 +29,33 @@ impl GraphState {
             .map(|id| (id.clone(), workflow.get_dependencies(id).len()))
             .collect();
         Self {
-            completed: HashSet::new(),
+            spawned: HashSet::new(),
             outputs: HashMap::new(),
             execution_order: Vec::new(),
             in_degree,
         }
     }
 
-    /// Get all nodes that have no dependencies so that they can be executed
-    pub fn get_ready_nodes(&self) -> Vec<NodeId> {
-        self.in_degree
+    /// Get all nodes that have no dependencies and haven't been spawned yet
+    pub fn get_ready_nodes(&mut self) -> Vec<NodeId> {
+        let ready: Vec<NodeId> = self
+            .in_degree
             .iter()
-            .filter(|(n, &u)| u == 0 && !self.completed.contains(*n))
+            .filter(|(n, &u)| u == 0 && !self.spawned.contains(*n))
             .map(|(n, _)| n.clone())
-            .collect()
+            .collect();
+
+        // Mark them as spawned so they won't be returned again
+        for id in &ready {
+            self.spawned.insert(id.clone());
+        }
+
+        ready
     }
 
     /// Update state after a job is completed
     pub fn update(&mut self, node_id: NodeId, output: Value, deps: &Vec<NodeId>) -> Result<()> {
         self.outputs.insert(node_id.clone(), output.clone());
-        self.completed.insert(node_id.clone());
         self.execution_order.push(node_id.clone());
 
         // Adjust dependencies so that nodes can enter the ready queue
