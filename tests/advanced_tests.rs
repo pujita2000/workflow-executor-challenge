@@ -240,7 +240,7 @@ async fn test_missing_node_reference() {
 }
 
 #[tokio::test]
-#[ignore] // This test requires actual concurrent execution - remove ignore to test
+// This test requires actual concurrent execution
 async fn test_concurrent_execution_timing() {
     // This test verifies that parallel branches actually execute concurrently
     // by measuring execution time

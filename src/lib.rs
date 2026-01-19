@@ -55,7 +55,7 @@ impl WorkflowExecutor for SimpleExecutor {
 
         // Add initially ready nodes to JoinSet
         for node_id in state.get_ready_nodes() {
-            let node = workflow.get_node(node_id)?;
+            let node = workflow.get_node(&node_id)?;
             let context = state.outputs.clone();
             jobs.spawn(async move {
                 let output = node.execute_with_context(&context).await?;
@@ -70,7 +70,7 @@ impl WorkflowExecutor for SimpleExecutor {
             state.update(node_id, output, &deps)?;
 
             for node_id in state.get_ready_nodes() {
-                let node = workflow.get_node(node_id)?;
+                let node = workflow.get_node(&node_id)?;
                 let context = state.outputs.clone();
                 jobs.spawn(async move {
                     let output = node.execute_with_context(&context).await?;
