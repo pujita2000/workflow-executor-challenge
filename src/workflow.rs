@@ -1,6 +1,6 @@
 use crate::{
     graph::{Edge, Node, NodeId},
-    AdjList, GraphState,
+    GraphState,
 };
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
@@ -26,15 +26,13 @@ pub struct Workflow {
 
 impl Workflow {
     /// Validate that this workflow is well-formed
-    /// Should check for:
+    /// Checks for:
     /// - Cycles in the graph
     /// - Missing node references in edges
     /// - Invalid input references
-    // DOCS: used adjacency list because we'd only have to go through edges once + will need to use it later (I think)
+    /// - Disconnected components
     pub fn validate(&self) -> Result<GraphState> {
-        // TODO: We should also check for disconnected graphs
-
-        let mut adj_list: AdjList = HashMap::new();
+        let mut adj_list: HashMap<NodeId, Vec<NodeId>> = HashMap::new();
         for e in &self.edges {
             // Check for invalid nodes
             if !self.nodes.contains_key(&e.from) || !self.nodes.contains_key(&e.to) {
@@ -45,6 +43,10 @@ impl Workflow {
                 .or_default()
                 .push(e.to.clone());
         }
+
+        // Before cyles, we check for disconnected because we don't want random jobs floating
+        // around unchecked or executing on their lonesome and compromising the result
+        self.check_connected()?;
 
         // Traditionally: visited nodes and those in the recursion stack
         let mut safe: HashSet<NodeId> = HashSet::new();
@@ -93,6 +95,48 @@ impl Workflow {
             if !nodes.contains_key(&id) {
                 bail!("Invalid node id in input");
             }
+        }
+        Ok(())
+    }
+
+    /// Check if the graph is weakly connected (all nodes reachable treating edges as undirected)
+    fn check_connected(&self) -> Result<()> {
+        if self.nodes.is_empty() {
+            return Ok(());
+        }
+
+        // Build undirected adjacency list
+        let mut undirected: HashMap<NodeId, HashSet<NodeId>> = HashMap::new();
+        for e in &self.edges {
+            undirected
+                .entry(e.from.clone())
+                .or_default()
+                .insert(e.to.clone());
+            undirected
+                .entry(e.to.clone())
+                .or_default()
+                .insert(e.from.clone());
+        }
+
+        // BFS from arbitrary start node
+        let start = self.nodes.keys().next().unwrap();
+        let mut visited: HashSet<NodeId> = HashSet::new();
+        let mut queue: Vec<NodeId> = vec![start.clone()];
+        visited.insert(start.clone());
+
+        while let Some(node) = queue.pop() {
+            if let Some(neighbors) = undirected.get(&node) {
+                for neighbor in neighbors {
+                    if !visited.contains(neighbor) {
+                        visited.insert(neighbor.clone());
+                        queue.push(neighbor.clone());
+                    }
+                }
+            }
+        }
+
+        if visited.len() != self.nodes.len() {
+            bail!("Graph is disconnected");
         }
         Ok(())
     }
@@ -311,5 +355,90 @@ mod test {
             edges,
         };
         assert!(workflow.validate().is_ok(), "Acyclic graph should be valid");
+    }
+
+    #[test]
+    fn test_check_connected() {
+        // Linear, connected
+        let mut nodes = HashMap::new();
+        nodes.insert("a".to_string(), node("a"));
+        nodes.insert("b".to_string(), node("b"));
+        nodes.insert("c".to_string(), node("c"));
+
+        let edges = vec![edge("a", "b"), edge("b", "c")];
+        let workflow = Workflow { nodes, edges };
+        assert!(
+            workflow.check_connected().is_ok(),
+            "Linear graph should be connected"
+        );
+
+        // Diamond, connected
+        let mut nodes = HashMap::new();
+        nodes.insert("a".to_string(), node("a"));
+        nodes.insert("b".to_string(), node("b"));
+        nodes.insert("c".to_string(), node("c"));
+        nodes.insert("d".to_string(), node("d"));
+
+        let edges = vec![
+            edge("a", "b"),
+            edge("a", "c"),
+            edge("b", "d"),
+            edge("c", "d"),
+        ];
+        let workflow = Workflow { nodes, edges };
+        assert!(
+            workflow.check_connected().is_ok(),
+            "Diamond graph should be connected"
+        );
+
+        // Two separate components
+        let mut nodes = HashMap::new();
+        nodes.insert("a".to_string(), node("a"));
+        nodes.insert("b".to_string(), node("b"));
+        nodes.insert("c".to_string(), node("c"));
+        nodes.insert("d".to_string(), node("d"));
+
+        let edges = vec![edge("a", "b"), edge("c", "d")];
+        let workflow = Workflow { nodes, edges };
+        assert!(
+            workflow.check_connected().is_err(),
+            "Disconnected graph should fail"
+        );
+
+        // Isolated nodes
+        let mut nodes = HashMap::new();
+        nodes.insert("a".to_string(), node("a"));
+        nodes.insert("b".to_string(), node("b"));
+        nodes.insert("isolated".to_string(), node("isolated"));
+
+        let edges = vec![edge("a", "b")];
+        let workflow = Workflow { nodes, edges };
+        assert!(
+            workflow.check_connected().is_err(),
+            "Graph with isolated node should fail"
+        );
+
+        // Single node (trivially connected)
+        let mut nodes = HashMap::new();
+        nodes.insert("a".to_string(), node("a"));
+
+        let workflow = Workflow {
+            nodes,
+            edges: vec![],
+        };
+        assert!(
+            workflow.check_connected().is_ok(),
+            "Single node should be connected"
+        );
+
+        // Empty graph
+        let workflow = Workflow {
+            nodes: HashMap::new(),
+            edges: vec![],
+        };
+        assert!(
+            workflow.check_connected().is_ok(),
+            "Empty graph should be valid"
+        );
     }
 }
