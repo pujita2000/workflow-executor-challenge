@@ -1,0 +1,11 @@
+
+running 6 tests
+test test_empty_workflow ... ok
+test test_linear_workflow ... ok
+test test_single_node ... ok
+test test_if_else_takes_true_branch ... ok
+test test_parallel_execution ... ok
+test test_if_else_takes_false_branch ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

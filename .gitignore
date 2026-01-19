@@ -14,5 +14,4 @@ Cargo.lock
 .DS_Store
 
 # Test outputs
-test_output.txt
 *.log
