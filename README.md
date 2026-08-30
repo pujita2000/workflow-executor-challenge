@@ -12,8 +12,7 @@ Cycle detection and graph validation
 
 ## Running Tests
 
-bash
-cargo test --test basic_tests
+`cargo test --test basic_tests`
 
 All 6 basic tests pass. Advanced tests (Add node, diamond patterns, concurrent timing verification) also implemented.
 
